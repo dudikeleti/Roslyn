@@ -12,10 +12,9 @@ namespace DebuggerShared.Visualizer.QueryComprehension
     {
         private class QueryState
         {
-            public SyntaxToken AnonymousTypeIdentifier { get; set; } = Identifier("@t");
-            public List<InvocationExpressionSyntax> Invocations { get; set; } = new List<InvocationExpressionSyntax>();
-            public Dictionary<string, int> IdentifiersChain { get; set; } = new Dictionary<string, int>();
-            public ExpressionSyntax SourceExpression { get; set; }
+            public SyntaxToken AnonymousTypeIdentifier { get; } = Identifier("@t");
+            public Dictionary<string, int> IdentifiersChain { get; } = new Dictionary<string, int>();
+            public ExpressionSyntax FluentExpression { get; set; }
             public SyntaxToken SourceIdentifier { get; set; }
             public bool IsAnonymousType { get; set; }
         }
@@ -33,32 +32,37 @@ namespace DebuggerShared.Visualizer.QueryComprehension
 
         public override SyntaxNode VisitQueryExpression(QueryExpressionSyntax node)
         {
-            _state.SourceExpression = (ExpressionSyntax)VisitFromClause(node.FromClause);
+            _state.FluentExpression = (ExpressionSyntax)VisitFromClause(node.FromClause);
             VisitQueryBody(node.Body);
             var fluentQuery = ConcatInvocations();
-            return fluentQuery;
+             return _state.FluentExpression;
         }
 
         public override SyntaxNode VisitQueryBody(QueryBodySyntax node)
         {
             foreach(QueryClauseSyntax clause in node.Clauses)
             {
-                InvocationExpressionSyntax fluentInvocation;
                 var fromClauseSyntax = clause as FromClauseSyntax;
-                if(fromClauseSyntax != null)
-                {
-                    fluentInvocation = CreateSelectMany(fromClauseSyntax);
-                    _state.Invocations.Add(fluentInvocation);
-                }
-                else
-                {
-                    fluentInvocation = (InvocationExpressionSyntax)Visit(clause);
-                    _state.Invocations.Add(fluentInvocation);
-                }
+                InvocationExpressionSyntax fluentInvocation =
+                    fromClauseSyntax != null
+                    ? CreateSelectMany(fromClauseSyntax)
+                    : (InvocationExpressionSyntax)Visit(clause);
+
+                _state.FluentExpression = InvocationExpression(
+                    MemberAccessExpression(
+                        SyntaxKind.SimpleMemberAccessExpression,
+                        _state.FluentExpression,
+                        (IdentifierNameSyntax)fluentInvocation.Expression),
+                    fluentInvocation.ArgumentList);
             }
 
             var selectOrGroup = (InvocationExpressionSyntax)Visit(node.SelectOrGroup);
-            _state.Invocations.Add(selectOrGroup);
+            _state.FluentExpression = InvocationExpression(
+                   MemberAccessExpression(
+                       SyntaxKind.SimpleMemberAccessExpression,
+                       _state.FluentExpression,
+                       (IdentifierNameSyntax)selectOrGroup.Expression),
+                   selectOrGroup.ArgumentList);
 
             if(node.Continuation != null)
             {
@@ -193,25 +197,6 @@ namespace DebuggerShared.Visualizer.QueryComprehension
         #endregion
 
         #region Help methods
-
-        private InvocationExpressionSyntax ConcatInvocations()
-        {
-            InvocationExpressionSyntax invocation = null;
-            ExpressionSyntax preInvocation = _state.SourceExpression;
-
-            foreach(InvocationExpressionSyntax currentInvocation in _state.Invocations)
-            {
-                invocation = InvocationExpression(
-                     MemberAccessExpression(
-                         SyntaxKind.SimpleMemberAccessExpression,
-                         preInvocation,
-                         (IdentifierNameSyntax)currentInvocation.Expression),
-                     currentInvocation.ArgumentList);
-
-                preInvocation = invocation;
-            }
-            return invocation;
-        }
 
         private InvocationExpressionSyntax CreateSelectMany(FromClauseSyntax currentFrom)
         {
