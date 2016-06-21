@@ -91,11 +91,16 @@ namespace DebuggerShared.Visualizer.QueryComprehension
                 return node.Expression;
             }
 
-            return InvocationExpression(
-                     MemberAccessExpression(
-                         SyntaxKind.SimpleMemberAccessExpression,
-                         node.Expression,
-                         IdentifierName($"Cast<{node.Type}>")));
+			 var typeList = new SeparatedSyntaxList<TypeSyntax>();
+             typeList = typeList.Add(node.Type);
+			 
+            return  InvocationExpression(
+                        MemberAccessExpression(
+                            SyntaxKind.SimpleMemberAccessExpression,
+                            source,
+                            GenericName(
+                                Identifier("Cast"),
+                                TypeArgumentList(typeList))));
         }
 
         public override SyntaxNode VisitWhereClause(WhereClauseSyntax node)
