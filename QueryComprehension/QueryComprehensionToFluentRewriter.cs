@@ -100,8 +100,7 @@ namespace DebuggerShared.Visualizer.QueryComprehension
 
         public override SyntaxNode VisitWhereClause(WhereClauseSyntax node)
         {
-            var condition = (ExpressionSyntax)Visit(node.Condition);
-            return BuildFluentInvocation("Where", BuildSimpleLambdaExpression(condition));
+            return BuildFluentInvocation("Where", BuildSimpleLambdaExpression(node.Condition));
         }
 
         public override SyntaxNode VisitBinaryExpression(BinaryExpressionSyntax node)
