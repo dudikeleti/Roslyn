@@ -42,18 +42,22 @@ namespace DebuggerShared.Visualizer.QueryComprehension
         {
             foreach(QueryClauseSyntax clause in node.Clauses)
             {
-                var fromClauseSyntax = clause as FromClauseSyntax;
+				 var fromClauseSyntax = clause as FromClauseSyntax;
                 InvocationExpressionSyntax fluentInvocation =
                     fromClauseSyntax != null
                     ? CreateSelectMany(fromClauseSyntax)
-                    : (InvocationExpressionSyntax)Visit(clause);
+                    : Visit(clause) as InvocationExpressionSyntax;
 
-                _state.FluentExpression = InvocationExpression(
-                    MemberAccessExpression(
-                        SyntaxKind.SimpleMemberAccessExpression,
-                        _state.FluentExpression,
-                        (IdentifierNameSyntax)fluentInvocation.Expression),
-                    fluentInvocation.ArgumentList);
+                if(fluentInvocation != null)
+                {
+                    _state.FluentExpression =
+                        InvocationExpression(
+                            MemberAccessExpression(
+                                SyntaxKind.SimpleMemberAccessExpression,
+                                _state.FluentExpression,
+                                (IdentifierNameSyntax)fluentInvocation.Expression),
+                            fluentInvocation.ArgumentList);
+                }
             }
 
             var selectOrGroup = (InvocationExpressionSyntax)Visit(node.SelectOrGroup);
@@ -158,32 +162,33 @@ namespace DebuggerShared.Visualizer.QueryComprehension
 
         public override SyntaxNode VisitOrderByClause(OrderByClauseSyntax node)
         {
-            InvocationExpressionSyntax orderByInvocationvocation = null;
-            InvocationExpressionSyntax preInvocation = null;
-
+            bool moreThanOneOrdering = false;
             foreach(OrderingSyntax orderingSyntax in node.Orderings)
             {
                 var orderExpression = (ExpressionSyntax)Visit(orderingSyntax.Expression);
 
-                var ascDesc = orderingSyntax.AscendingOrDescendingKeyword.ValueText?.ToLower() == "descending"
-                                  ? "OrderByDescending"
-                                  : "OrderBy";
-                orderByInvocationvocation = BuildFluentInvocation(
-                    ascDesc,
-                    BuildSimpleLambdaExpression(orderExpression));
+                var orderByThenBy = moreThanOneOrdering ? "ThenBy" : "OrderBy";
+                orderByThenBy += orderingSyntax.AscendingOrDescendingKeyword.ValueText?.ToLower() == "descending"
+                                  ? "Descending"
+                                  : "";
 
-                if(preInvocation != null)
-                {
+                InvocationExpressionSyntax orderByInvocationvocation = 
+                    BuildFluentInvocation(
+                        orderByThenBy,
+                        BuildSimpleLambdaExpression(orderExpression));
+
+                _state.FluentExpression =
                     InvocationExpression(
-                     MemberAccessExpression(
-                         SyntaxKind.SimpleMemberAccessExpression,
-                         preInvocation,
-                         (IdentifierNameSyntax)orderByInvocationvocation.Expression),
-                     orderByInvocationvocation.ArgumentList);
-                }
-                preInvocation = orderByInvocationvocation;
+                        MemberAccessExpression(
+                            SyntaxKind.SimpleMemberAccessExpression,
+                            _state.FluentExpression,
+                            (IdentifierNameSyntax)orderByInvocationvocation.Expression),
+                        orderByInvocationvocation.ArgumentList);
+
+                moreThanOneOrdering = true;
+                MapClause(orderExpression);
             }
-            return orderByInvocationvocation;
+            return null;
         }
 
         public override SyntaxNode VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
