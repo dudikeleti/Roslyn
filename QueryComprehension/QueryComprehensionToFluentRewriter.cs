@@ -190,6 +190,30 @@ namespace DebuggerShared.Visualizer.QueryComprehension
             }
             return null;
         }
+		
+		public override SyntaxNode VisitJoinClause(JoinClauseSyntax node)
+        {
+            if(node.Into == null)
+            {
+                var rangeVariables = GetRangeVariables(node).Concat(Enumerable.Repeat(node.Identifier, 1));
+                return BuildFluentInvocation(
+                    "Join",
+                    Argument(node.InExpression),
+                    Argument(BuildSimpleLambdaExpression(node.LeftExpression)),
+                    Argument(BuildSimpleLambdaExpression(node.RightExpression, Parameter(node.Identifier))),
+                    Argument(BuildLambdaExpression(rangeVariables, IdentifierName(node.Identifier))));
+            }
+            else
+            {
+                var rangeVariables = GetRangeVariables(node).Concat(Enumerable.Repeat(node.Into.Identifier, 1)).ToList();
+                return BuildFluentInvocation(
+                    "GroupJoin",
+                     Argument(node.InExpression),
+                    Argument(BuildSimpleLambdaExpression(node.LeftExpression)),
+                    Argument(BuildSimpleLambdaExpression(node.RightExpression, Parameter(node.Identifier))),
+                    Argument(BuildLambdaExpression(rangeVariables, BuildAnonymousObject(rangeVariables))));
+            }
+        }
 
         public override SyntaxNode VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
         {
@@ -291,6 +315,17 @@ namespace DebuggerShared.Visualizer.QueryComprehension
                     SeparatedList(
                         expressions.Select(Argument))));
         }
+		
+		private InvocationExpressionSyntax BuildFluentInvocation(
+            string methodName,
+            params ArgumentSyntax[] arguments)
+        {
+            return InvocationExpression(
+                IdentifierName(methodName)).
+                WithArgumentList(
+                ArgumentList(
+                    SeparatedList(arguments)));
+        }
 
         private SimpleLambdaExpressionSyntax BuildSimpleLambdaExpression(ExpressionSyntax expression)
         {
@@ -298,7 +333,7 @@ namespace DebuggerShared.Visualizer.QueryComprehension
         }
 
         private ParenthesizedLambdaExpressionSyntax BuildLambdaExpression(
-           List<SyntaxToken> tokens,
+           IEnumerable<SyntaxToken> tokens,
            ExpressionSyntax expression)
         {
             return ParenthesizedLambdaExpression(
@@ -309,7 +344,7 @@ namespace DebuggerShared.Visualizer.QueryComprehension
         }
 
         private AnonymousObjectCreationExpressionSyntax BuildAnonymousObject(
-            List<SyntaxToken> tokens)
+            IEnumerable<SyntaxToken> tokens)
         {
             return AnonymousObjectCreationExpression(
                 SeparatedList(
@@ -342,25 +377,34 @@ namespace DebuggerShared.Visualizer.QueryComprehension
                 GetLambdaParameterToken(expression));
         }
 
-        private SyntaxToken GetLambdaParameterToken(ExpressionSyntax expression)
+         private SyntaxToken GetLambdaParameterToken(ExpressionSyntax expression)
         {
             return _state.IsAnonymousType ?
                 _state.AnonymousTypeIdentifier :
-                Identifier(GetRangeVariable(expression) ?? _state.SourceIdentifier.ValueText);
+                GetRangeVariable(expression);
         }
 
-        private string GetRangeVariable(ExpressionSyntax node)
+        private SyntaxToken GetRangeVariable(ExpressionSyntax node)
         {
             try
             {
-                return node.DescendantNodesAndSelf().
-               Select(n => _model.GetSymbolInfo(n).Symbol).
-               SingleOrDefault(n => n is IRangeVariableSymbol)?.Name;
+                return Identifier(
+                    node.DescendantNodesAndSelf().
+                    Select(n => _model.GetSymbolInfo(n).Symbol).
+                    SingleOrDefault(n => n is IRangeVariableSymbol)?.Name);
             }
             catch(Exception)
             {
-                return null;
+                return Identifier(_state.SourceIdentifier.ValueText);
             }
+        }
+		
+		 private IEnumerable<SyntaxToken> GetRangeVariables(SyntaxNode node)
+        {
+            return from n in node.DescendantNodesAndSelf()
+                   let symbol = _model.GetSymbolInfo(n).Symbol
+                   where symbol is IRangeVariableSymbol
+                   select Identifier(symbol.Name);
         }
 
         #endregion
