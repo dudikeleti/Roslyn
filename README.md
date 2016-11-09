@@ -3,8 +3,10 @@
 
 I'll add here some plays that I make with Roslyn.
 
-The first thing is rewriter that take query comprehension syntax and rewrite it to corresponding fluent syntax.
+1. Rewriter that take query comprehension syntax and rewrite it to corresponding fluent syntax.
 
-In this sample, I did not did any syntax validation. Also I kept the query as is, without removing the redundant parts.
+This is a sub class of a bigger class that do the rewrite, among other things.
+Hence, it may be that part of the code will seem redundant.
+I kept the query as is, without removing any redundant parts.
 
-This is just a sample so if you want to use it, test it.
+2. Rewrite that take an instance method and convert it to a static method
