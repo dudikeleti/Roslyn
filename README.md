@@ -9,4 +9,4 @@ This is a sub class of a bigger class that do the rewrite, among other things.
 Hence, it may be that part of the code will seem redundant.
 I kept the query as is, without removing any redundant parts.
 
-2 - Rewrite that take an instance method and convert it to a static method
+2 - Rewriter that take an instance method and convert it to a static method
