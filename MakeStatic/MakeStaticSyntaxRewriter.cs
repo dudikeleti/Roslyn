@@ -149,4 +149,11 @@ public class MakeStaticSyntaxRewriter : CSharpSyntaxRewriter
                 }
                 return base.VisitInvocationExpression(node);
             }
+            
+            public override SyntaxNode VisitConditionalAccessExpression(ConditionalAccessExpressionSyntax node)
+            {
+                // update the expression but not the Elvis itself
+                var newExpression = (ExpressionSyntax)Visit(node.Expression);
+                return node.Update(newExpression, node.OperatorToken, node.WhenNotNull);
+            }
         }
